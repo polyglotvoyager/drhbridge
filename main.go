@@ -1,8 +1,29 @@
+// to test locally: start username with "debug"
+
 package main
 
 import (
+    "flag"
     "fmt"
+    "log"
+    "net/http"
+    "math/rand/v2"
+    "os"
+    "embed"
 )
+
+//go:embed templates
+var templates embed.FS
+
+var addr = flag.String("addr", ":8100", "http service address")
+
+func serveRegister(w http.ResponseWriter, r *http.Request) {
+    http.ServeFileFS(w, r, templates, "templates/register.html")
+}
+
+func servePlay(w http.ResponseWriter, r *http.Request) {
+    http.ServeFileFS(w, r, templates, "templates/play.html")
+}
 
 // rank: 2 to 14 (J=11, Q=12, K=13, A=14)
 // suit: C, D, H, S
@@ -73,6 +94,11 @@ type Bid struct {
 }
 
 type Game struct {
+    West []Card
+    East []Card
+    DrH []Card
+    Teddy []Card
+
     Declarer Player
     Board Player
 
@@ -84,46 +110,81 @@ func (g Game) GetDeclarer() Player {
     return g.Declarer
 }
 
-func main() {
-    fmt.Println("Dr. H. Bridge")
+func (g Game) WestHand() []Card {
+    return g.West
+}
 
-    deck := []Card{
-        Card{2, "C"}, Card{3, "C"}, Card{14, "S"},
-    }
+func (g Game) EastHand() []Card {
+    return g.East
+}
 
-    drh := DrH{[]Card{Card{8, "C"}}}
-    east := East{[]Card{}}
-    west := West{[]Card{}}
-    teddy := Teddy{[]Card{}}
+func (g Game) DrHHand() []Card {
+    return g.DrH
+}
 
-    game := Game{
+func (g Game) TeddyHand() []Card {
+    return g.Teddy
+}
+
+func NewGame() Game {
+    deck := NewDeck()
+
+    return Game{
+        West: deck[0:13],
+        East: deck[13:26],
+        DrH: deck[26:39],
+        Teddy: deck[39:52],
+
         Declarer: nil,
         Board: nil,
 
         DrHScore: 0,
         EastWestScore: 0,
     }
+}
 
-    if game.Declarer != nil {
-        fmt.Printf("Deck: %v\n", deck)
+func NewDeck() []Card {
+    deck := []Card{}
+    suits := []string{"C", "D", "H", "S"}
 
-        fmt.Printf("DrH: %v\n", drh)
-        fmt.Printf("East: %v\n", east)
-        fmt.Printf("West: %v\n", west)
-        fmt.Printf("Teddy: %v\n", teddy)
-
-        fmt.Printf("Game.Declarer: %v\n", game.Declarer)
+    for r := 2; r <= 14; r++ {
+        for sIdx := 0; sIdx < 4; sIdx++ {
+            deck = append(deck, Card{r, suits[sIdx]})
+        }
     }
-    // set Declarer
-    game.Declarer = &drh
-    fmt.Printf("Game.Declarer after reassignment: %v\n", game.Declarer)
 
-    drh.Hand = append(drh.Hand, Card{12, "C"})
+    rand.Shuffle(len(deck), func(i, j int) {
+        deck[i], deck[j] = deck[j], deck[i]
+    })
 
-    fmt.Printf("Game.Declarer after append: %v\n", game.Declarer)
-    fmt.Printf("Game.Declarer from GetDeclarer: %v\n", game.GetDeclarer())
-    fmt.Printf("Game.Declarer.Hand from GetDeclarer: %v\n", game.GetDeclarer().GetHand())
-    fmt.Printf("Game.Declarer.Label: %v\n", game.GetDeclarer().GetLabel())
+    return deck
+}
 
-    fmt.Println("end of script")
+func main() {
+    fmt.Println("Dr. H. Bridge")
+
+    game := NewGame()
+
+    flag.Parse()
+    hub := newHub(game)
+    go hub.run()
+
+    mux := http.NewServeMux()
+    mux.HandleFunc("GET /drhbridge", serveRegister)
+    mux.HandleFunc("GET /drhbridge/{$}", serveRegister)
+    mux.HandleFunc("GET /drhbridge/play", servePlay)
+    mux.HandleFunc("/drhbridge/ws", func(w http.ResponseWriter, r *http.Request) {
+        serveWs(hub, w, r)
+    })
+
+    srv := &http.Server{
+        Addr: *addr,
+        Handler: mux,
+    }
+    fmt.Printf("serving drhbridge at %v\n", *addr)
+    err := srv.ListenAndServe()
+    if err != nil {
+        log.Fatal("ListenAndServe: ", err)
+    }
+    os.Exit(1)
 }
