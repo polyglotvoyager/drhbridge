@@ -25,18 +25,7 @@ func servePlay(w http.ResponseWriter, r *http.Request) {
     http.ServeFileFS(w, r, templates, "templates/play.html")
 }
 
-// rank: 2 to 14 (J=11, Q=12, K=13, A=14)
-// suit: C, D, H, S
-type Card struct {
-    Rank int
-    Suit string
-}
-
 type DrH struct {
-    Hand []Card
-}
-
-type East struct {
     Hand []Card
 }
 
@@ -48,38 +37,42 @@ type Teddy struct {
     Hand []Card
 }
 
+type East struct {
+    Hand []Card
+}
+
 // Player hands
-func (d *DrH) GetHand() []Card {
+func (d DrH) GetHand() []Card {
     return d.Hand
 }
 
-func (e *East) GetHand() []Card {
-    return e.Hand
-}
-
-func (w *West) GetHand() []Card {
+func (w West) GetHand() []Card {
     return w.Hand
 }
 
-func (t *Teddy) GetHand() []Card {
+func (t Teddy) GetHand() []Card {
     return t.Hand
 }
 
+func (e East) GetHand() []Card {
+    return e.Hand
+}
+
 // Player Labels
-func (d *DrH) GetLabel() string {
+func (d DrH) GetLabel() string {
     return "Dr.H."
 }
 
-func (e *East) GetLabel() string {
-    return "East."
-}
-
-func (w *West) GetLabel() string {
+func (w West) GetLabel() string {
     return "West."
 }
 
-func (t *Teddy) GetLabel() string {
+func (t Teddy) GetLabel() string {
     return "Teddy"
+}
+
+func (e East) GetLabel() string {
+    return "East."
 }
 
 // Interfaces
@@ -93,50 +86,95 @@ type Bid struct {
     Suit string
 }
 
+// lead is repeated, used to obtain the lead suit
+// ignore the possibility that a player cheated (played a trump when he or she had the led suit)
+func (g Game) SetTrickWinner() {
+    leadSuit := g.TrickLeadCard.Suit
+    trump := g.WinningBid.Suit
+
+    // replace cards' suits with trump if it exists
+    if trump != "NT" {
+        g.TrickDrH = ReplaceSuit(g.TrickDrH, trump)
+        g.TrickWest = ReplaceSuit(g.TrickWest, trump)
+        g.TrickTeddy = ReplaceSuit(g.TrickTeddy, trump)
+        g.TrickEast = ReplaceSuit(g.TrickEast, trump)
+    }
+
+    if CardBeats(g.TrickDrH, g.TrickLeadCard, leadSuit, trump) {
+        g.TrickWinner = g.DrH
+        g.TrickWinningCard = g.TrickDrH
+    }
+
+    if CardBeats(g.TrickWest, g.TrickWinningCard, leadSuit, trump) {
+        g.TrickWinner = g.West
+        g.TrickWinningCard = g.TrickWest
+    }
+
+    if CardBeats(g.TrickTeddy, g.TrickWinningCard, leadSuit, trump) {
+        g.TrickWinner = g.Teddy
+        g.TrickWinningCard = g.TrickTeddy
+    }
+
+    if CardBeats(g.TrickEast, g.TrickWinningCard, leadSuit, trump) {
+        g.TrickWinner = g.East
+        g.TrickWinningCard = g.TrickEast
+    }
+}
+
 type Game struct {
-    West []Card
-    East []Card
-    DrH []Card
-    Teddy []Card
+    West Player
+    East Player
+    DrH Player
+    Teddy Player
 
     Declarer Player
-    Board Player
+    Dummy Player
 
     DrHScore int
     EastWestScore int
+
+    WinningBid Bid
+
+    TrickLeadCard Card
+    TrickWinner Player
+    TrickWinningCard Card
+    TrickDrH Card
+    TrickWest Card
+    TrickTeddy Card
+    TrickEast Card
 }
 
 func (g Game) GetDeclarer() Player {
     return g.Declarer
 }
 
-func (g Game) WestHand() []Card {
-    return g.West
-}
-
-func (g Game) EastHand() []Card {
-    return g.East
-}
-
 func (g Game) DrHHand() []Card {
-    return g.DrH
+    return g.DrH.GetHand()
+}
+
+func (g Game) WestHand() []Card {
+    return g.West.GetHand()
 }
 
 func (g Game) TeddyHand() []Card {
-    return g.Teddy
+    return g.Teddy.GetHand()
+}
+
+func (g Game) EastHand() []Card {
+    return g.East.GetHand()
 }
 
 func NewGame() Game {
     deck := NewDeck()
 
     return Game{
-        West: deck[0:13],
-        East: deck[13:26],
-        DrH: deck[26:39],
-        Teddy: deck[39:52],
+        West: West{deck[0:13]},
+        East: East{deck[13:26]},
+        DrH: DrH{deck[26:39]},
+        Teddy: Teddy{deck[39:52]},
 
         Declarer: nil,
-        Board: nil,
+        Dummy: nil,
 
         DrHScore: 0,
         EastWestScore: 0,
@@ -145,11 +183,10 @@ func NewGame() Game {
 
 func NewDeck() []Card {
     deck := []Card{}
-    suits := []string{"C", "D", "H", "S"}
 
-    for r := 2; r <= 14; r++ {
-        for sIdx := 0; sIdx < 4; sIdx++ {
-            deck = append(deck, Card{r, suits[sIdx]})
+    for _, r := range ranks {
+        for _, s := range suits {
+            deck = append(deck, Card{r, s})
         }
     }
 
@@ -182,6 +219,8 @@ func main() {
         Handler: mux,
     }
     fmt.Printf("serving drhbridge at %v\n", *addr)
+
+    fmt.Printf("drh hand %v\n", game.DrHHand())
     err := srv.ListenAndServe()
     if err != nil {
         log.Fatal("ListenAndServe: ", err)
