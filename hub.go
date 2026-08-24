@@ -25,12 +25,6 @@ type Hub struct {
     // Unregister requests from clients.
     unregister chan *Client
 
-    // Question to be answered
-    question string
-
-    // Answer to question
-    answer string
-
     game Game
 }
 
@@ -40,8 +34,6 @@ func newHub(g Game) *Hub {
         register:   make(chan *Client),
         unregister: make(chan *Client),
         clients:    make(map[*Client]bool),
-        question: "Send 'play' for a new question",
-        answer: "initialanswer",
         game: g,
     }
 }

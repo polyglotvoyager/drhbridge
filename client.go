@@ -51,12 +51,6 @@ type Client struct {
 
     username string
     score int
-
-    cards []Card
-}
-
-func (c *Client) Hand() []Card {
-    return c.cards
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -72,6 +66,9 @@ func (c *Client) readPump() {
     c.conn.SetReadLimit(maxMessageSize)
     c.conn.SetReadDeadline(time.Now().Add(pongWait))
     c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+
+    g := c.hub.game
+
     for {
         _, message, err := c.conn.ReadMessage()
         if err != nil {
@@ -91,8 +88,7 @@ func (c *Client) readPump() {
 
             switch command {
             case "ping":
-                c.hub.broadcast <- []byte("all pong")
-                c.send <- []byte(fmt.Sprintf("%v", c.Hand()))
+                c.hub.broadcast <- []byte("Server pongs")
             case "westhand":
                 c.send <- []byte(fmt.Sprintf("%v", c.hub.game.WestHand()))
             case "easthand":
@@ -101,9 +97,11 @@ func (c *Client) readPump() {
                 c.send <- []byte(fmt.Sprintf("%v", c.hub.game.DrHHand()))
             case "teddyhand":
                 c.send <- []byte(fmt.Sprintf("%v", c.hub.game.TeddyHand()))
-            case "westplay":
-                c.send <- []byte("West playing " + argument)
-                // TODO: manipulate game state here
+
+            case "play":
+                c.hub.broadcast <- []byte(g.Play(sender, argument))
+                c.send <- []byte(fmt.Sprintf("%v", c.hub.game.PlayerHand(sender)))
+
             case "chat":
                 c.hub.broadcast <- []byte(sender + ": " + argument)
             default:
@@ -173,7 +171,6 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
     client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), username: username}
     client.hub.register <- client
     client.hub.broadcast <- []byte(username + " joined the game!")
-    client.hub.broadcast <- []byte(hub.question)
 
     // Allow collection of memory referenced by the caller by doing all work in
     // new goroutines.

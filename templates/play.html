@@ -7,9 +7,12 @@
     <script type="text/javascript">
     window.onload = function () {
       const urlParams = new URLSearchParams(window.location.search);
-      const username = urlParams.get("username");
-      console.log("playing as " + username);
-      document.getElementById("usernameLabel").innerText = username;
+      const fullUsername = urlParams.get("username");
+
+      const gameUsername = fullUsername.replaceAll("debug", "");
+
+      console.log("playing as " + gameUsername);
+      document.getElementById("usernameLabel").innerText = gameUsername;
 
       let conn;
       const userinput = document.getElementById("userinput");
@@ -39,23 +42,21 @@
         if (!userinput.value) {
           return false;
         }
-        if (!username) {
-          username = "Anonymous";
-        }
-        conn.send(username + "/" + userinput.value);
+        conn.send(gameUsername + "/" + userinput.value);
         userinput.value = "";
         userinput.focus();
         return false;
       };
 
       if (window["WebSocket"]) {
-        if (username.startsWith("debug")) {
-          conn = new WebSocket("ws://" + document.location.host + "/drhbridge/ws?username=" + username);
+        if (fullUsername.startsWith("debug")) {
+          conn = new WebSocket("ws://" + document.location.host + "/drhbridge/ws?username=" + gameUsername);
         } else {
-          conn = new WebSocket("wss://" + document.location.host + "/drhbridge/ws?username=" + username);
+          conn = new WebSocket("wss://" + document.location.host + "/drhbridge/ws?username=" + gameUsername);
         }
         conn.onopen = function () {
           conn.send("Game server/chat/Welcome!");
+          conn.send(`${gameUsername}/${gameUsername}hand/`);
         }
         conn.onclose = function (evt) {
           const item = document.createElement("div");

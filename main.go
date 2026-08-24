@@ -10,6 +10,8 @@ import (
     "math/rand/v2"
     "os"
     "embed"
+    "strings"
+    "slices"
 )
 
 //go:embed templates
@@ -42,42 +44,60 @@ type East struct {
 }
 
 // Player hands
-func (d DrH) GetHand() []Card {
+func (d *DrH) GetHand() []Card {
     return d.Hand
 }
 
-func (w West) GetHand() []Card {
+func (w *West) GetHand() []Card {
     return w.Hand
 }
 
-func (t Teddy) GetHand() []Card {
+func (t *Teddy) GetHand() []Card {
     return t.Hand
 }
 
-func (e East) GetHand() []Card {
+func (e *East) GetHand() []Card {
     return e.Hand
 }
 
+// Setters
+func (d *DrH) SetHand(newHand []Card) {
+    d.Hand = newHand
+}
+
+func (w *West) SetHand(newHand []Card) {
+    w.Hand = newHand
+}
+
+func (t *Teddy) SetHand(newHand []Card) {
+    t.Hand = newHand
+}
+
+func (e *East) SetHand(newHand []Card) {
+    e.Hand = newHand
+}
+
 // Player Labels
-func (d DrH) GetLabel() string {
+func (d *DrH) GetLabel() string {
     return "Dr.H."
 }
 
-func (w West) GetLabel() string {
+func (w *West) GetLabel() string {
     return "West."
 }
 
-func (t Teddy) GetLabel() string {
+func (t *Teddy) GetLabel() string {
     return "Teddy"
 }
 
-func (e East) GetLabel() string {
+func (e *East) GetLabel() string {
     return "East."
 }
 
 // Interfaces
 type Player interface {
     GetHand() []Card
+    SetHand([]Card)
     GetLabel() string
 }
 
@@ -118,6 +138,19 @@ func (g Game) SetTrickWinner() {
     if CardBeats(g.TrickEast, g.TrickWinningCard, leadSuit, trump) {
         g.TrickWinner = g.East
         g.TrickWinningCard = g.TrickEast
+    }
+}
+
+func (g Game) PlayerHand(playerName string) []Card {
+    switch playerName {
+    case "teddy":
+        return g.Teddy.GetHand()
+    case "drh":
+        return g.DrH.GetHand()
+    case "west":
+        return g.West.GetHand()
+    default:
+        return nil
     }
 }
 
@@ -164,21 +197,54 @@ func (g Game) EastHand() []Card {
     return g.East.GetHand()
 }
 
+func (g Game) Play(playerName string, cardString string) string {
+    var player Player
+
+    switch playerName {
+    case "teddy":
+        player = g.Teddy
+    case "drh":
+        player = g.DrH
+    case "west":
+        player = g.West
+    case "east":
+        player = g.East
+    }
+
+    cardParts := strings.Split(cardString, " ")
+    card := Card{cardParts[0], cardParts[1]}
+
+    index := slices.Index(player.GetHand(), card)
+
+    if index >= 0 {
+        player.SetHand(slices.Delete(player.GetHand(), index, index + 1))
+        return playerName + " played " + cardString
+    } else {
+        return playerName + ": card " + cardString + " not found"
+    }
+}
+
 func NewGame() Game {
     deck := NewDeck()
 
-    return Game{
-        West: West{deck[0:13]},
-        East: East{deck[13:26]},
-        DrH: DrH{deck[26:39]},
-        Teddy: Teddy{deck[39:52]},
+    g := Game{}
 
-        Declarer: nil,
-        Dummy: nil,
+    drh := &DrH{make([]Card, 13)}
+    west := &West{make([]Card, 13)}
+    teddy := &Teddy{make([]Card, 13)}
+    east := &East{make([]Card, 13)}
 
-        DrHScore: 0,
-        EastWestScore: 0,
-    }
+    copy(drh.Hand, deck[0:13])
+    copy(west.Hand, deck[13:26])
+    copy(teddy.Hand, deck[26:39])
+    copy(east.Hand, deck[39:52])
+
+    g.DrH = drh
+    g.West = west
+    g.Teddy = teddy
+    g.East = east
+
+    return g
 }
 
 func NewDeck() []Card {
@@ -221,6 +287,10 @@ func main() {
     fmt.Printf("serving drhbridge at %v\n", *addr)
 
     fmt.Printf("drh hand %v\n", game.DrHHand())
+    fmt.Printf("west hand %v\n", game.WestHand())
+    fmt.Printf("teddy hand %v\n", game.TeddyHand())
+    fmt.Printf("east hand %v\n", game.EastHand())
+
     err := srv.ListenAndServe()
     if err != nil {
         log.Fatal("ListenAndServe: ", err)
