@@ -27,6 +27,7 @@ func main() {
     fmt.Println("Dr. H. Bridge")
 
     game := NewGame()
+    game.Reset()
 
     flag.Parse()
     hub := newHub(game)

@@ -25,7 +25,7 @@ type Hub struct {
     // Unregister requests from clients.
     unregister chan *Client
 
-    game Game
+    game *Game
 }
 
 func newHub(g Game) *Hub {
@@ -34,7 +34,7 @@ func newHub(g Game) *Hub {
         register:   make(chan *Client),
         unregister: make(chan *Client),
         clients:    make(map[*Client]bool),
-        game: g,
+        game: &g,
     }
 }
 

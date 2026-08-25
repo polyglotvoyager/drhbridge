@@ -1,7 +1,9 @@
 package main
 
 import (
+    "fmt"
     "strings"
+    "strconv"
     "slices"
 )
 
@@ -14,7 +16,7 @@ type Bid struct {
 // ignore the possibility that a player cheated (played a trump when he or she had the led suit)
 func (g Game) SetTrickWinner() {
     leadSuit := g.TrickLeadCard.Suit
-    trump := g.WinningBid.Suit
+    trump := g.LastBid.Suit
 
     // replace cards' suits with trump if it exists
     if trump != "NT" {
@@ -64,13 +66,23 @@ type Game struct {
     DrH Player
     Teddy Player
 
+    WestActive bool
+    DrHActive bool
+    EastActive bool
+
     Declarer Player
     Dummy Player
 
     DrHScore int
     EastWestScore int
 
-    WinningBid Bid
+    WestBid Bid
+    EastBid Bid
+    DrHBid Bid
+    TeddyBid Bid
+
+    Bidder Player
+    LastBid Bid
 
     TrickLeadCard Card
     TrickWinner Player
@@ -79,6 +91,11 @@ type Game struct {
     TrickWest Card
     TrickTeddy Card
     TrickEast Card
+
+    TotalTricksDrH int
+    TotalTricksEastWest int
+
+    GameState string // keep track if "bidding" or "playing"
 }
 
 func (g Game) GetDeclarer() Player {
@@ -128,9 +145,33 @@ func (g Game) Play(playerName string, cardString string) string {
     }
 }
 
-func NewGame() Game {
+func (g *Game) Reset() {
     deck := NewDeck()
 
+    g.DrH.SetHand(deck[0:13])
+    g.West.SetHand(deck[13:26])
+    g.Teddy.SetHand(deck[26:39])
+    g.East.SetHand(deck[39:52])
+
+    // sort
+    slices.SortFunc(g.DrH.GetHand(), func(a, b Card) int {
+        return CardOrderCompare(a, b, "NT") // No Trump for initial sort
+    })
+    slices.SortFunc(g.West.GetHand(), func(a, b Card) int {
+        return CardOrderCompare(a, b, "NT") // No Trump for initial sort
+    })
+    slices.SortFunc(g.Teddy.GetHand(), func(a, b Card) int {
+        return CardOrderCompare(a, b, "NT") // No Trump for initial sort
+    })
+    slices.SortFunc(g.East.GetHand(), func(a, b Card) int {
+        return CardOrderCompare(a, b, "NT") // No Trump for initial sort
+    })
+
+    g.Bidder = g.DrH // DrH always goes first in a newly created game
+    g.GameState = "bidding"
+}
+
+func NewGame() Game {
     g := Game{}
 
     drh := &DrH{make([]Card, 13)}
@@ -138,29 +179,57 @@ func NewGame() Game {
     teddy := &Teddy{make([]Card, 13)}
     east := &East{make([]Card, 13)}
 
-    copy(drh.Hand, deck[0:13])
-    copy(west.Hand, deck[13:26])
-    copy(teddy.Hand, deck[26:39])
-    copy(east.Hand, deck[39:52])
-
-    // sort
-    slices.SortFunc(drh.Hand, func(a, b Card) int {
-        return CardOrderCompare(a, b, "NT") // No Trump for initial sort
-    })
-    slices.SortFunc(west.Hand, func(a, b Card) int {
-        return CardOrderCompare(a, b, "NT") // No Trump for initial sort
-    })
-    slices.SortFunc(teddy.Hand, func(a, b Card) int {
-        return CardOrderCompare(a, b, "NT") // No Trump for initial sort
-    })
-    slices.SortFunc(east.Hand, func(a, b Card) int {
-        return CardOrderCompare(a, b, "NT") // No Trump for initial sort
-    })
-
     g.DrH = drh
     g.West = west
     g.Teddy = teddy
     g.East = east
 
     return g
+}
+
+func (g *Game) PlayerActive(player string) {
+    switch player {
+    case "west":
+        g.WestActive = true
+    case "east":
+        g.EastActive = true
+    case "drh":
+        g.DrHActive = true
+    }
+}
+
+func (g *Game) PlayerInactive(player string) {
+    switch player {
+    case "west":
+        g.WestActive = false
+    case "east":
+        g.EastActive = false
+    case "drh":
+        g.DrHActive = false
+    }
+}
+
+func (g Game) AllActive() bool {
+    return g.WestActive && g.EastActive && g.DrHActive
+}
+
+func (g Game) GameCommand() string {
+    if g.GameState == "bidding" {
+        return g.Bidder.GetLabel() + " to bid:"
+    }
+    return "Invalid state during " + g.GameState
+}
+
+func (g *Game) Bid(player string, bidString string) string {
+    bidParts := strings.Split(bidString, " ")
+    tricks, err := strconv.Atoi(bidParts[0])
+    if err != nil {
+        return "Invalid number of tricks: " + bidParts[0]
+    }
+    suit := bidParts[1]
+    b := Bid{tricks, suit}
+
+    // TODO: check that bid is greater than current last
+    g.LastBid = b
+    return fmt.Sprintf(player + " bid %v", g.LastBid)
 }

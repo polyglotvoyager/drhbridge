@@ -55,13 +55,13 @@
           conn = new WebSocket("wss://" + document.location.host + "/drhbridge/ws?username=" + gameUsername);
         }
         conn.onopen = function () {
-          conn.send("Game server/chat/Welcome!");
+          conn.send(`${gameUsername}/private/Welcome!`);
+          conn.send(`${gameUsername}/join/`);
           conn.send(`${gameUsername}/${gameUsername}hand/`);
         }
         conn.onclose = function (evt) {
-          const item = document.createElement("div");
-          item.innerHTML = "<b>Connection closed.</b>";
-          appendLog(item);
+          conn.send(`${gameUsername}/leave/`);
+          conn.send(`Game server/chat/${gameUsername} left.`);
         };
         conn.onmessage = function (evt) {
           const messages = evt.data.split('\n');

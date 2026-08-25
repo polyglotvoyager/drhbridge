@@ -9,6 +9,7 @@ import (
     "log"
     "net/http"
     "strings"
+    "strconv"
     "time"
     "fmt"
 
@@ -89,21 +90,42 @@ func (c *Client) readPump() {
             switch command {
             case "ping":
                 c.hub.broadcast <- []byte("Server pongs")
-            case "westhand":
-                c.send <- []byte(fmt.Sprintf("%v", c.hub.game.WestHand()))
-            case "easthand":
-                c.send <- []byte(fmt.Sprintf("%v", c.hub.game.EastHand()))
-            case "drhhand":
-                c.send <- []byte(fmt.Sprintf("%v", c.hub.game.DrHHand()))
-            case "teddyhand":
-                c.send <- []byte(fmt.Sprintf("%v", c.hub.game.TeddyHand()))
+
+            case "join":
+                g.PlayerActive(sender)
+                fmt.Println("g drhactive " + strconv.FormatBool(g.DrHActive))
+                if g.AllActive() {
+                    c.hub.broadcast <- []byte(g.GameCommand())
+                }
+            case "leave":
+                g.PlayerInactive(sender)
+                fmt.Println("inactivating " + sender)
+
+            case "bid":
+                c.hub.broadcast <- []byte(g.Bid(sender, argument))
 
             case "play":
                 c.hub.broadcast <- []byte(g.Play(sender, argument))
-                c.send <- []byte(fmt.Sprintf("%v", c.hub.game.PlayerHand(sender)))
+                c.send <- []byte(fmt.Sprintf("%v", g.PlayerHand(sender)))
+            case "reset":
+                c.hub.game.Reset()
+                c.hub.broadcast <- []byte("Game restarted.")
 
             case "chat":
                 c.hub.broadcast <- []byte(sender + ": " + argument)
+            case "private":
+                c.send <- []byte(argument)
+
+            // debug/cheat
+            case "westhand":
+                c.send <- []byte(fmt.Sprintf("%v", g.WestHand()))
+            case "easthand":
+                c.send <- []byte(fmt.Sprintf("%v", g.EastHand()))
+            case "drhhand":
+                c.send <- []byte(fmt.Sprintf("%v", g.DrHHand()))
+            case "teddyhand":
+                c.send <- []byte(fmt.Sprintf("%v", g.TeddyHand()))
+
             default:
                 c.send <- []byte("unknown command: " + command)
             }
