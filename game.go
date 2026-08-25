@@ -229,7 +229,7 @@ func (g *Game) Bid(player string, bidString string) string {
     suit := bidParts[1]
     b := Bid{tricks, suit}
 
-    // TODO: check that bid is greater than current last
+    // Idea: validate in front-end. The logic here will be duplicated otherwise
     g.LastBid = b
     return fmt.Sprintf(player + " bid %v", g.LastBid)
 }
