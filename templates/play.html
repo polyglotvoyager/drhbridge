@@ -62,6 +62,9 @@
         conn.onclose = function (evt) {
           conn.send(`${gameUsername}/leave/`);
           conn.send(`Game server/chat/${gameUsername} left.`);
+          const item = document.createElement("div");
+          item.innerText = "This connection was closed. Reload this page to reconnect.";
+          appendLog(item);
         };
         conn.onmessage = function (evt) {
           const messages = evt.data.split('\n');
@@ -160,6 +163,7 @@
     <div id="log"></div>
 
     <!-- hardcoded table -->
+    <!--
     <table style="width: 35vw; position: absolute; top: 3rem; left: 3rem; background-color: white; border: 3px solid #999; border-collapse: none;">
       <tr style="height: 1.2rem;">
         <td style="height: 1.2rem;"><strong>DrH / Teddy</strong></td>
@@ -186,6 +190,6 @@
         <td style="height: 1.2rem; text-align: right;">120</td>
       </tr>
     </table>
-
+    -->
   </body>
 </html>

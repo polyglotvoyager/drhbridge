@@ -174,10 +174,10 @@ func (g *Game) Reset() {
 func NewGame() Game {
     g := Game{}
 
-    drh := &DrH{make([]Card, 13)}
-    west := &West{make([]Card, 13)}
-    teddy := &Teddy{make([]Card, 13)}
-    east := &East{make([]Card, 13)}
+    drh := &DrH{make([]Card, 13), nil}
+    west := &West{make([]Card, 13), nil}
+    teddy := &Teddy{make([]Card, 13), nil}
+    east := &East{make([]Card, 13), nil}
 
     g.DrH = drh
     g.West = west
@@ -232,4 +232,20 @@ func (g *Game) Bid(player string, bidString string) string {
     // Idea: validate in front-end. The logic here will be duplicated otherwise
     g.LastBid = b
     return fmt.Sprintf(player + " bid %v", g.LastBid)
+}
+
+func (g Game) SetPlayerClient(username string, client *Client) {
+    playerName := strings.ReplaceAll(username, "debug", "")
+    switch playerName {
+    case "drh":
+        g.DrH.SetClient(client)
+    case "west":
+        g.West.SetClient(client)
+    case "east":
+        g.East.SetClient(client)
+    case "teddy":
+        g.Teddy.SetClient(client)
+    default:
+        fmt.Println("SetPlayerClient: unknown player " + playerName)
+    }
 }

@@ -194,6 +194,8 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
     client.hub.register <- client
     client.hub.broadcast <- []byte(username + " joined the game!")
 
+    client.hub.game.SetPlayerClient(username, client)
+
     // Allow collection of memory referenced by the caller by doing all work in
     // new goroutines.
     go client.writePump()
