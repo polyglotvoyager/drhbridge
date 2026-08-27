@@ -76,3 +76,7 @@ func (h *Hub) run() {
         }
     }
 }
+
+func (h Hub) GameCommand() {
+    h.broadcast <- []byte(h.game.GameState + " " + h.game.Bidder.GetLabel())
+}

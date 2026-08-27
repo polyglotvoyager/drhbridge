@@ -47,10 +47,10 @@ func main() {
     }
     fmt.Printf("serving drhbridge at %v\n", *addr)
 
-    fmt.Printf("drh hand %v\n", game.DrHHand())
-    fmt.Printf("west hand %v\n", game.WestHand())
-    fmt.Printf("teddy hand %v\n", game.TeddyHand())
-    fmt.Printf("east hand %v\n", game.EastHand())
+    fmt.Printf("D %v\n", game.DrHHand())
+    fmt.Printf("T %v\n", game.TeddyHand())
+    fmt.Printf("W %v\n", game.WestHand())
+    fmt.Printf("E %v\n", game.EastHand())
 
     err := srv.ListenAndServe()
     if err != nil {

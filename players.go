@@ -2,26 +2,35 @@ package main
 
 import (
     "fmt"
+    "sync"
 )
 
 type DrH struct {
     Hand []Card
+    Bid Bid
     Client *Client
+    mu sync.Mutex
 }
 
 type West struct {
     Hand []Card
+    Bid Bid
     Client *Client
+    mu sync.Mutex
 }
 
 type Teddy struct {
     Hand []Card
+    Bid Bid
     Client *Client
+    mu sync.Mutex
 }
 
 type East struct {
     Hand []Card
+    Bid Bid
     Client *Client
+    mu sync.Mutex
 }
 
 // Player hands
@@ -39,6 +48,23 @@ func (t *Teddy) GetHand() []Card {
 
 func (e *East) GetHand() []Card {
     return e.Hand
+}
+
+// Bids
+func (d *DrH) GetBid() Bid {
+    return d.Bid
+}
+
+func (t *Teddy) GetBid() Bid {
+    return t.Bid
+}
+
+func (e *East) GetBid() Bid {
+    return e.Bid
+}
+
+func (w *West) GetBid() Bid {
+    return w.Bid
 }
 
 // Get Client
@@ -75,14 +101,34 @@ func (e *East) SetHand(newHand []Card) {
     e.Hand = newHand
 }
 
+// Bids
+func (d *DrH) SetBid(newBid Bid) {
+    d.Bid = newBid
+}
+
+func (e *East) SetBid(newBid Bid) {
+    e.Bid = newBid
+}
+
+func (w *West) SetBid(newBid Bid) {
+    w.Bid = newBid
+}
+
+func (t *Teddy) SetBid(newBid Bid) {
+    t.Bid = newBid
+}
+
 // Set Client
 func (d *DrH) SetClient(newClient *Client) {
     fmt.Println("setting DrH client")
+
+    d.mu.Lock()
     if d.Client != nil {
         d.Client.hub.unregister <- d.Client
         d.Client.conn.Close()
     }
     d.Client = newClient
+    d.mu.Unlock()
 }
 
 func (w *West) SetClient(newClient *Client) {
@@ -102,11 +148,11 @@ func (t *Teddy) SetClient(newClient *Client) {
 
 // Player Labels
 func (d *DrH) GetLabel() string {
-    return "Dr.H."
+    return "Dr.H"
 }
 
 func (w *West) GetLabel() string {
-    return "West."
+    return "West"
 }
 
 func (t *Teddy) GetLabel() string {
@@ -114,7 +160,7 @@ func (t *Teddy) GetLabel() string {
 }
 
 func (e *East) GetLabel() string {
-    return "East."
+    return "East"
 }
 
 // Interfaces
@@ -124,4 +170,6 @@ type Player interface {
     GetLabel() string
     GetClient() *Client
     SetClient(*Client)
+    GetBid() Bid
+    SetBid(Bid)
 }

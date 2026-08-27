@@ -95,7 +95,7 @@ func (c *Client) readPump() {
                 g.PlayerActive(sender)
                 fmt.Println("g drhactive " + strconv.FormatBool(g.DrHActive))
                 if g.AllActive() {
-                    c.hub.broadcast <- []byte(g.GameCommand())
+                    c.hub.GameCommand()
                 }
             case "leave":
                 g.PlayerInactive(sender)

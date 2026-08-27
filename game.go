@@ -76,11 +76,6 @@ type Game struct {
     DrHScore int
     EastWestScore int
 
-    WestBid Bid
-    EastBid Bid
-    DrHBid Bid
-    TeddyBid Bid
-
     Bidder Player
     LastBid Bid
 
@@ -171,18 +166,35 @@ func (g *Game) Reset() {
     g.GameState = "bidding"
 }
 
+func (g Game) NextPlayer(player Player) Player {
+    switch player.GetLabel() {
+    case "Dr.H.":
+        return g.West
+    case "West":
+        return g.Teddy
+    case "Teddy":
+        return g.East
+    case "East":
+        return g.DrH
+    default:
+        return nil
+    }
+}
+
 func NewGame() Game {
     g := Game{}
 
-    drh := &DrH{make([]Card, 13), nil}
-    west := &West{make([]Card, 13), nil}
-    teddy := &Teddy{make([]Card, 13), nil}
-    east := &East{make([]Card, 13), nil}
+    drh := &DrH{Hand: make([]Card, 13)}
+    west := &West{Hand: make([]Card, 13)}
+    teddy := &Teddy{Hand: make([]Card, 13)}
+    east := &East{Hand: make([]Card, 13)}
 
     g.DrH = drh
     g.West = west
     g.Teddy = teddy
     g.East = east
+
+    g.Bidder = g.DrH
 
     return g
 }
@@ -209,18 +221,27 @@ func (g *Game) PlayerInactive(player string) {
     }
 }
 
+func (g Game) GetPlayer(name string) Player {
+    switch name {
+    case "west":
+        return g.West
+    case "east":
+        return g.East
+    case "drh":
+        return g.DrH
+    case "teddy":
+        return g.Teddy
+    default:
+        return nil
+    }
+}
+
 func (g Game) AllActive() bool {
     return g.WestActive && g.EastActive && g.DrHActive
 }
 
-func (g Game) GameCommand() string {
-    if g.GameState == "bidding" {
-        return g.Bidder.GetLabel() + " to bid:"
-    }
-    return "Invalid state during " + g.GameState
-}
-
-func (g *Game) Bid(player string, bidString string) string {
+func (g *Game) Bid(playerName string, bidString string) string {
+    player := g.GetPlayer(playerName)
     bidParts := strings.Split(bidString, " ")
     tricks, err := strconv.Atoi(bidParts[0])
     if err != nil {
@@ -229,9 +250,11 @@ func (g *Game) Bid(player string, bidString string) string {
     suit := bidParts[1]
     b := Bid{tricks, suit}
 
-    // Idea: validate in front-end. The logic here will be duplicated otherwise
     g.LastBid = b
-    return fmt.Sprintf(player + " bid %v", g.LastBid)
+    player.SetBid(b)
+    g.Bidder = g.NextPlayer(player)
+
+    return fmt.Sprintf(player.GetLabel() + " bid %v", g.LastBid)
 }
 
 func (g Game) SetPlayerClient(username string, client *Client) {
