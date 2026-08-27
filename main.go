@@ -30,15 +30,14 @@ func main() {
     game.Reset()
 
     flag.Parse()
-    hub := newHub(game)
-    go hub.run()
+    go game.hub.run()
 
     mux := http.NewServeMux()
     mux.HandleFunc("GET /drhbridge", serveRegister)
     mux.HandleFunc("GET /drhbridge/{$}", serveRegister)
     mux.HandleFunc("GET /drhbridge/play", servePlay)
     mux.HandleFunc("/drhbridge/ws", func(w http.ResponseWriter, r *http.Request) {
-        serveWs(hub, w, r)
+        serveWs(game, w, r)
     })
 
     srv := &http.Server{

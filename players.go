@@ -124,7 +124,7 @@ func (d *DrH) SetClient(newClient *Client) {
 
     d.mu.Lock()
     if d.Client != nil {
-        d.Client.hub.unregister <- d.Client
+        d.Client.game.hub.unregister <- d.Client
         d.Client.conn.Close()
     }
     d.Client = newClient

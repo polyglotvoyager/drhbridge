@@ -91,6 +91,8 @@ type Game struct {
     TotalTricksEastWest int
 
     GameState string // keep track if "bidding" or "playing"
+
+    hub *Hub
 }
 
 func (g Game) GetDeclarer() Player {
@@ -166,23 +168,23 @@ func (g *Game) Reset() {
     g.GameState = "bidding"
 }
 
-func (g Game) NextPlayer(player Player) Player {
-    switch player.GetLabel() {
-    case "Dr.H.":
-        return g.West
-    case "West":
-        return g.Teddy
-    case "Teddy":
-        return g.East
-    case "East":
-        return g.DrH
+func (g *Game) NextBidder() {
+    switch g.Bidder {
+    case g.DrH:
+        g.Bidder = g.West
+    case g.West:
+        g.Bidder = g.Teddy
+    case g.Teddy:
+        g.Bidder = g.East
+    case g.East:
+        g.Bidder = g.DrH
     default:
-        return nil
+        panic("could not advance bidder")
     }
 }
 
-func NewGame() Game {
-    g := Game{}
+func NewGame() *Game {
+    g := &Game{}
 
     drh := &DrH{Hand: make([]Card, 13)}
     west := &West{Hand: make([]Card, 13)}
@@ -195,6 +197,8 @@ func NewGame() Game {
     g.East = east
 
     g.Bidder = g.DrH
+
+    g.hub = newHub()
 
     return g
 }
@@ -242,6 +246,11 @@ func (g Game) AllActive() bool {
 
 func (g *Game) Bid(playerName string, bidString string) string {
     player := g.GetPlayer(playerName)
+
+    if player != g.Bidder {
+        return player.GetLabel() + " played out of turn"
+    }
+
     bidParts := strings.Split(bidString, " ")
     tricks, err := strconv.Atoi(bidParts[0])
     if err != nil {
@@ -252,7 +261,9 @@ func (g *Game) Bid(playerName string, bidString string) string {
 
     g.LastBid = b
     player.SetBid(b)
-    g.Bidder = g.NextPlayer(player)
+    g.NextBidder()
+
+    g.GameCommand()
 
     return fmt.Sprintf(player.GetLabel() + " bid %v", g.LastBid)
 }
@@ -271,4 +282,8 @@ func (g Game) SetPlayerClient(username string, client *Client) {
     default:
         fmt.Println("SetPlayerClient: unknown player " + playerName)
     }
+}
+
+func (g Game) GameCommand() {
+    g.hub.broadcast <- []byte(g.GameState + " " + g.Bidder.GetLabel())
 }

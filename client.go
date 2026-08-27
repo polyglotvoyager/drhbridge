@@ -42,7 +42,7 @@ var upgrader = websocket.Upgrader{
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
-    hub *Hub
+    game *Game
 
     // The websocket connection.
     conn *websocket.Conn
@@ -61,14 +61,15 @@ type Client struct {
 // reads from this goroutine.
 func (c *Client) readPump() {
     defer func() {
-        c.hub.unregister <- c
+        c.game.hub.unregister <- c
         c.conn.Close()
     }()
     c.conn.SetReadLimit(maxMessageSize)
     c.conn.SetReadDeadline(time.Now().Add(pongWait))
     c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 
-    g := c.hub.game
+    g := c.game
+    h := c.game.hub
 
     for {
         _, message, err := c.conn.ReadMessage()
@@ -89,30 +90,30 @@ func (c *Client) readPump() {
 
             switch command {
             case "ping":
-                c.hub.broadcast <- []byte("Server pongs")
+                h.broadcast <- []byte("Server pongs")
 
             case "join":
                 g.PlayerActive(sender)
                 fmt.Println("g drhactive " + strconv.FormatBool(g.DrHActive))
                 if g.AllActive() {
-                    c.hub.GameCommand()
+                    g.GameCommand()
                 }
             case "leave":
                 g.PlayerInactive(sender)
                 fmt.Println("inactivating " + sender)
 
             case "bid":
-                c.hub.broadcast <- []byte(g.Bid(sender, argument))
+                h.broadcast <- []byte(g.Bid(sender, argument))
 
             case "play":
-                c.hub.broadcast <- []byte(g.Play(sender, argument))
+                h.broadcast <- []byte(g.Play(sender, argument))
                 c.send <- []byte(fmt.Sprintf("%v", g.PlayerHand(sender)))
             case "reset":
-                c.hub.game.Reset()
-                c.hub.broadcast <- []byte("Game restarted.")
+                g.Reset()
+                h.broadcast <- []byte("Game restarted.")
 
             case "chat":
-                c.hub.broadcast <- []byte(sender + ": " + argument)
+                h.broadcast <- []byte(sender + ": " + argument)
             case "private":
                 c.send <- []byte(argument)
 
@@ -182,7 +183,7 @@ func (c *Client) writePump() {
 }
 
 // serveWs handles websocket requests from the peer.
-func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
+func serveWs(game *Game, w http.ResponseWriter, r *http.Request) {
     conn, err := upgrader.Upgrade(w, r, nil)
     if err != nil {
         log.Println(err)
@@ -190,11 +191,11 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
     }
     params := r.URL.Query()
     username := params.Get("username")
-    client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), username: username}
-    client.hub.register <- client
-    client.hub.broadcast <- []byte(username + " joined the game!")
+    client := &Client{game: game, conn: conn, send: make(chan []byte, 256), username: username}
+    client.game.hub.register <- client
+    client.game.hub.broadcast <- []byte(username + " joined the game!")
 
-    client.hub.game.SetPlayerClient(username, client)
+    client.game.SetPlayerClient(username, client)
 
     // Allow collection of memory referenced by the caller by doing all work in
     // new goroutines.

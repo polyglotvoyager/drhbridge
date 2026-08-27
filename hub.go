@@ -24,17 +24,14 @@ type Hub struct {
 
     // Unregister requests from clients.
     unregister chan *Client
-
-    game *Game
 }
 
-func newHub(g Game) *Hub {
+func newHub() *Hub {
     return &Hub{
         broadcast:  make(chan []byte),
         register:   make(chan *Client),
         unregister: make(chan *Client),
         clients:    make(map[*Client]bool),
-        game: &g,
     }
 }
 
@@ -75,8 +72,4 @@ func (h *Hub) run() {
             }
         }
     }
-}
-
-func (h Hub) GameCommand() {
-    h.broadcast <- []byte(h.game.GameState + " " + h.game.Bidder.GetLabel())
 }
