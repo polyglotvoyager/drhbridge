@@ -5,12 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Play - DrH Bridge</title>
     <script type="text/javascript">
+    const urlParams = new URLSearchParams(window.location.search);
+    const fullUsername = urlParams.get("username");
+    const gameUsername = fullUsername.replaceAll("debug", "");
+
     window.onload = function () {
-      const urlParams = new URLSearchParams(window.location.search);
-      const fullUsername = urlParams.get("username");
-
-      const gameUsername = fullUsername.replaceAll("debug", "");
-
       console.log("playing as " + gameUsername);
       document.getElementById("usernameLabel").innerText = gameUsername;
 
@@ -160,6 +159,10 @@
         <input type="submit" id="submitbutton" value="Send or hit enter" />
       </div>
     </form>
+
+    <div>
+      <button onclick="sendPass()">Pass</button>
+    </div>
     <div id="log"></div>
 
     <!-- hardcoded table -->
@@ -191,5 +194,11 @@
       </tr>
     </table>
     -->
+    <script>
+    function sendPass() {
+      document.getElementById("userinput").value = `bid/0 0 pass`;
+      document.getElementById("submitbutton").click();
+    }
+    </script>
   </body>
 </html>

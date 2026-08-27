@@ -10,6 +10,11 @@ import (
 type Bid struct {
     Tricks int
     Suit string
+    Special string
+}
+
+func (b Bid) GetLabel() string {
+    return strconv.Itoa(b.Tricks) + b.Suit
 }
 
 // lead is repeated, used to obtain the lead suit
@@ -55,6 +60,8 @@ func (g Game) PlayerHand(playerName string) []Card {
         return g.DrH.GetHand()
     case "west":
         return g.West.GetHand()
+    case "east":
+        return g.East.GetHand()
     default:
         return nil
     }
@@ -79,6 +86,7 @@ type Game struct {
     Bidder Player
     LastBid Bid
 
+    TrickPlayer Player
     TrickLeadCard Card
     TrickWinner Player
     TrickWinningCard Card
@@ -115,18 +123,11 @@ func (g Game) EastHand() []Card {
     return g.East.GetHand()
 }
 
-func (g Game) Play(playerName string, cardString string) string {
-    var player Player
+func (g *Game) Play(playerName string, cardString string) string {
+    player := g.GetPlayer(playerName)
 
-    switch playerName {
-    case "teddy":
-        player = g.Teddy
-    case "drh":
-        player = g.DrH
-    case "west":
-        player = g.West
-    case "east":
-        player = g.East
+    if player != g.TrickPlayer {
+        return player.GetLabel() + " played out of turn"
     }
 
     cardParts := strings.Split(cardString, " ")
@@ -136,6 +137,9 @@ func (g Game) Play(playerName string, cardString string) string {
 
     if index >= 0 {
         player.SetHand(slices.Delete(player.GetHand(), index, index + 1))
+        g.NextPlayer()
+        // TODO: handle last trick (count TotalTricksDrH and TotalTricksEastWest), if == 13, stop
+        g.GameCommand()
         return playerName + " played " + cardString
     } else {
         return playerName + ": card " + cardString + " not found"
@@ -183,6 +187,21 @@ func (g *Game) NextBidder() {
     }
 }
 
+func (g *Game) NextPlayer() {
+    switch g.TrickPlayer {
+    case g.DrH:
+        g.TrickPlayer = g.West
+    case g.West:
+        g.TrickPlayer = g.Teddy
+    case g.Teddy:
+        g.TrickPlayer = g.East
+    case g.East:
+        g.TrickPlayer = g.DrH
+    default:
+        panic("could not advance player")
+    }
+}
+
 func NewGame() *Game {
     g := &Game{}
 
@@ -197,6 +216,7 @@ func NewGame() *Game {
     g.East = east
 
     g.Bidder = g.DrH
+    g.LastBid = Bid{0, "0", "new"}
 
     g.hub = newHub()
 
@@ -244,6 +264,39 @@ func (g Game) AllActive() bool {
     return g.WestActive && g.EastActive && g.DrHActive
 }
 
+
+// if the player is the third pass in a row, return true
+func (g *Game) AllOthersPass(player Player) bool {
+    if player == g.DrH {
+        return g.DrH.GetBid().Special == "pass" &&
+            g.East.GetBid().Special == "pass" &&
+            g.Teddy.GetBid().Special == "pass"
+    }
+    if player == g.West {
+        return g.West.GetBid().Special == "pass" &&
+            g.DrH.GetBid().Special == "pass" &&
+            g.East.GetBid().Special == "pass"
+    }
+    if player == g.East {
+        return g.East.GetBid().Special == "pass" &&
+            g.West.GetBid().Special == "pass" &&
+            g.Teddy.GetBid().Special == "pass"
+    }
+    if player == g.Teddy {
+        return g.Teddy.GetBid().Special == "pass" &&
+            g.DrH.GetBid().Special == "pass" &&
+            g.West.GetBid().Special == "pass"
+    }
+    return false
+}
+
+func (g *Game) AllPass() bool {
+    return g.DrH.GetBid().Special == "pass" &&
+        g.West.GetBid().Special == "pass" &&
+        g.East.GetBid().Special == "pass" &&
+        g.Teddy.GetBid().Special == "pass"
+}
+
 func (g *Game) Bid(playerName string, bidString string) string {
     player := g.GetPlayer(playerName)
 
@@ -257,18 +310,34 @@ func (g *Game) Bid(playerName string, bidString string) string {
         return "Invalid number of tricks: " + bidParts[0]
     }
     suit := bidParts[1]
-    b := Bid{tricks, suit}
+    special := ""
+
+    if len(bidParts) == 3 {
+        special = bidParts[2]
+    }
+
+    b := Bid{tricks, suit, special}
 
     g.LastBid = b
     player.SetBid(b)
+
     g.NextBidder()
 
-    g.GameCommand()
+    if g.AllPass() {
+        return "all pass - TODO - reshuffle"
+    }
 
-    return fmt.Sprintf(player.GetLabel() + " bid %v", g.LastBid)
+    if g.AllOthersPass(player) {
+        g.Declarer = g.Bidder
+        g.LastBid = g.Declarer.GetBid()
+        g.TrickPlayer = g.Declarer
+        g.GameState = "playing"
+    }
+    g.GameCommand()
+    return fmt.Sprintf(player.GetLabel() + " bid %v", player.GetBid())
 }
 
-func (g Game) SetPlayerClient(username string, client *Client) {
+func (g *Game) SetPlayerClient(username string, client *Client) {
     playerName := strings.ReplaceAll(username, "debug", "")
     switch playerName {
     case "drh":
@@ -285,5 +354,13 @@ func (g Game) SetPlayerClient(username string, client *Client) {
 }
 
 func (g Game) GameCommand() {
-    g.hub.broadcast <- []byte(g.GameState + " " + g.Bidder.GetLabel())
+    message := "GAME: " + g.GameState + " "
+    if g.GameState == "bidding" {
+        message += g.Bidder.GetLabel()
+    } else if g.GameState == "playing" {
+        message += g.LastBid.GetLabel() + " " + g.TrickPlayer.GetLabel() + " to play"
+    } else {
+        message += "(invalid state)"
+    }
+    g.hub.broadcast <- []byte(message)
 }
